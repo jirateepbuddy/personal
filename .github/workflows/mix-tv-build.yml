@@ -22,8 +22,9 @@ jobs:
           java-version: '17'
       - name: Android SDK path
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          which sdkmanager
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -1)
+          test -n "$SDKMANAGER"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
       - name: Install Android platform
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Setup Gradle
