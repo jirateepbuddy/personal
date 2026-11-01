@@ -298,7 +298,8 @@ public class MainActivity extends Activity {
         View target = preferredFocus == null ? initialFocus : preferredFocus;
         if (target != null) target.requestFocus();
         else if (dock.getChildCount() > 0) dock.getChildAt(0).requestFocus();
-        clockRefresh.run();
+        handler.removeCallbacks(clockRefresh);
+        handler.post(clockRefresh);
     }
 
     private String greeting() {
@@ -430,6 +431,7 @@ public class MainActivity extends Activity {
                     switch (choice) {
                         case "Open": openApp(app); break;
                         case "Pin to dock":
+                            if (favoriteIds.size() >= 6) { toast("Dock supports up to 6 apps"); break; }
                             if (!favoriteIds.contains(app.packageName)) favoriteIds.add(app.packageName);
                             saveFavorites(); render(); break;
                         case "Remove from dock":
@@ -458,6 +460,7 @@ public class MainActivity extends Activity {
     }
 
     private void showAppPicker() {
+        if (favoriteIds.size() >= 6) { toast("Dock supports up to 6 apps"); return; }
         List<AppEntry> choices = new ArrayList<>();
         for (AppEntry app : installed.values()) {
             if (!favoriteIds.contains(app.packageName)) choices.add(app);
