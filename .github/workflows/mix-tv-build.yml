@@ -1,0 +1,45 @@
+name: Build MIX TV APK
+on:
+  push:
+    branches: [mix-tv-launcher]
+    paths:
+      - 'mix-tv/**'
+      - '.github/workflows/mix-tv-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build installable APK
+        working-directory: mix-tv
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Verify manifest permissions
+        run: |
+          APK=mix-tv/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          if grep -q '<uses-permission' mix-tv/app/src/main/AndroidManifest.xml; then exit 1; fi
+          sha256sum "$APK"
+      - name: Upload MIX TV debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MIX-TV-v1-debug-apk
+          path: mix-tv/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
