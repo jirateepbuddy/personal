@@ -195,111 +195,266 @@ public class MainActivity extends Activity {
         prefs.edit().putString("favorites", android.text.TextUtils.join(",", favoriteIds)).apply();
     }
 
+    private boolean showAllApps = false;
+    private View firstDockApp;
+
     private void render() {
         theme = Math.floorMod(prefs.getInt("theme", 0), THEMES_TOP.length);
-        LinearLayout main = vertical();
-        main.setPadding(dp(42), dp(23), dp(42), dp(36));
-        main.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{THEMES_TOP[theme], THEMES_BOTTOM[theme]}));
+        android.widget.FrameLayout frame = new android.widget.FrameLayout(this);
+        frame.addView(new AtmosphereView(this, theme), new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(frame);
+
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
         scroll.setVerticalScrollBarEnabled(false);
+        scroll.setClipToPadding(false);
+        frame.addView(scroll, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        LinearLayout main = vertical();
+        main.setPadding(dp(54), dp(29), dp(54), dp(34));
         scroll.addView(main);
-        setContentView(scroll);
 
-        LinearLayout head = horizontal();
-        TextView brand = text("◈   MIX TV", 21, Color.WHITE, true);
-        head.addView(brand, new LinearLayout.LayoutParams(0, dp(44), 1));
+        // Minimal global toolbar
+        LinearLayout top = horizontal();
+        TextView brand = text("◈  MIX TV", 23, 0xFFFFFFFF, true);
         brand.setGravity(Gravity.CENTER_VERTICAL);
-        clock = text("", 14, 0xFFB8C7D9, false);
-        head.addView(clock);
-        main.addView(head);
+        top.addView(brand, new LinearLayout.LayoutParams(0, dp(46), 1));
+        TextView input = toolButton("INPUTS", this::showInputs);
+        top.addView(input);
+        TextView settings = toolButton("⚙", this::openSettings);
+        LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(dp(50), dp(42));
+        settingsLp.leftMargin = dp(11);
+        top.addView(settings, settingsLp);
+        clock = text("", 14, 0xFFE4E8F1, true);
+        clock.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams clockLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(42));
+        clockLp.leftMargin = dp(24);
+        top.addView(clock, clockLp);
+        main.addView(top);
 
+        // Atmospheric hero: one strong line, no clutter.
         LinearLayout hero = vertical();
-        hero.setPadding(dp(4), dp(39), dp(4), dp(27));
-        TextView kicker = text("YOUR SPACE  /  " + THEME_NAMES[theme], 12, THEMES_ACCENT[theme], true);
-        kicker.setLetterSpacing(.13f);
-        hero.addView(kicker);
-        focusTitle = text(greeting(), 40, 0xFFFBFCFF, true);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+        hero.setPadding(dp(7), dp(72), dp(7), dp(61));
+        TextView small = text("YOUR ENTERTAINMENT SPACE", 12, 0xFFBFCCDC, true);
+        small.setLetterSpacing(.20f);
+        hero.addView(small);
+        focusTitle = text(greeting(), 43, 0xFFFFFFFF, false);
+        focusTitle.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        titleParams.topMargin = dp(7);
-        hero.addView(focusTitle, titleParams);
-        focusDescription = text("Everything you love, one simple screen.", 15, 0xFF9BAABC, false);
-        LinearLayout.LayoutParams sub = new LinearLayout.LayoutParams(
+        titleLp.topMargin = dp(5);
+        hero.addView(focusTitle, titleLp);
+        focusDescription = text("Movies  ·  Series  ·  Sports  ·  Apps", 15, 0xFFD7DCE7, false);
+        LinearLayout.LayoutParams descriptionLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        sub.topMargin = dp(7);
-        hero.addView(focusDescription, sub);
+        descriptionLp.topMargin = dp(8);
+        hero.addView(focusDescription, descriptionLp);
         main.addView(hero);
 
-        main.addView(sectionHeader("FAVORITES", "LONG PRESS OK TO ORGANIZE"));
+        // Centered glass-like dock
         LinearLayout dock = horizontal();
-        dock.setPadding(dp(13), dp(12), dp(13), dp(12));
-        dock.setBackground(rounded(0x243E516C, 24));
-        LinearLayout.LayoutParams dockParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        dockParams.topMargin = dp(10);
-        main.addView(dock, dockParams);
-
+        dock.setGravity(Gravity.CENTER);
+        dock.setPadding(dp(18), dp(17), dp(18), dp(17));
+        GradientDrawable glass = rounded(0x6C263652, 28);
+        glass.setStroke(dp(1), 0x77C1D5F2);
+        dock.setBackground(glass);
+        main.addView(dock, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         View preferredFocus = null;
-        View initialFocus = null;
+        firstDockApp = null;
+        int count = 0;
         for (String pkg : favoriteIds) {
             AppEntry app = installed.get(pkg);
-            if (app == null) continue;
-            View tile = appTile(app, true);
-            dock.addView(tile);
-            if (initialFocus == null) initialFocus = tile;
+            if (app == null || count >= 6) continue;
+            View tile = premiumTile(app);
+            LinearLayout.LayoutParams tileLp = new LinearLayout.LayoutParams(dp(111), dp(96));
+            tileLp.setMargins(dp(4), 0, dp(4), 0);
+            dock.addView(tile, tileLp);
+            if (firstDockApp == null) firstDockApp = tile;
             if (pkg.equals(lastFocusedPackage)) preferredFocus = tile;
+            count++;
         }
-        dock.addView(actionTile("+", "ADD", () -> showAppPicker(), true));
+        View allAppsButton = premiumActionTile("⁙", "ALL APPS", () -> {
+            showAllApps = !showAllApps;
+            render();
+        });
+        LinearLayout.LayoutParams allLp = new LinearLayout.LayoutParams(dp(111), dp(96));
+        allLp.setMargins(dp(4), 0, dp(4), 0);
+        dock.addView(allAppsButton, allLp);
+        if (firstDockApp == null) firstDockApp = allAppsButton;
 
+        // Shortcuts remain low and easy to find. Inputs gracefully fall back on Sony.
         LinearLayout quick = horizontal();
-        LinearLayout.LayoutParams quickParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        quickParams.topMargin = dp(17);
-        main.addView(quick, quickParams);
-        quick.addView(actionButton("▣  INPUTS", this::showInputs));
-        quick.addView(actionButton("⚙  SETTINGS", this::openSettings));
-        quick.addView(actionButton("◐  THEME", () -> {
+        quick.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams quickLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(58));
+        quickLp.topMargin = dp(29);
+        main.addView(quick, quickLp);
+        quick.addView(pillButton("▣   PS5 / HDMI", this::showInputs));
+        quick.addView(pillButton("✦   APPEARANCE", () -> {
             prefs.edit().putInt("theme", (theme + 1) % THEMES_TOP.length).apply();
             render();
         }));
-        quick.addView(actionButton("⌂  HOME DEFAULT", this::showHomeChooser));
+        quick.addView(pillButton("⊞   ALL APPS", () -> {
+            showAllApps = !showAllApps;
+            render();
+        }));
+        quick.addView(pillButton("⚙   SETTINGS", this::openSettings));
 
-        LinearLayout.LayoutParams allTitleParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        allTitleParams.topMargin = dp(24);
-        main.addView(sectionHeader("ALL APPS", "PRESS OK TO OPEN  •  LONG PRESS TO PIN"), allTitleParams);
-        GridLayout grid = new GridLayout(this);
-        grid.setColumnCount(6);
-        grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
-        grid.setUseDefaultMargins(false);
-        LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        gridParams.topMargin = dp(12);
-        main.addView(grid, gridParams);
-        for (AppEntry app : installed.values()) {
-            View tile = appTile(app, false);
-            GridLayout.LayoutParams cell = new GridLayout.LayoutParams();
-            cell.width = dp(132);
-            cell.height = dp(112);
-            cell.setMargins(0, 0, dp(12), dp(13));
-            grid.addView(tile, cell);
-            if (app.packageName.equals(lastFocusedPackage) && preferredFocus == null) preferredFocus = tile;
+        if (showAllApps) {
+            LinearLayout.LayoutParams titleMargin = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            titleMargin.topMargin = dp(42);
+            main.addView(sectionHeader("YOUR LIBRARY", "LONG PRESS OK TO PIN TO THE DOCK"), titleMargin);
+            GridLayout grid = new GridLayout(this);
+            grid.setColumnCount(6);
+            LinearLayout.LayoutParams gridMargin = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            gridMargin.topMargin = dp(16);
+            main.addView(grid, gridMargin);
+            for (AppEntry app : installed.values()) {
+                View tile = premiumTile(app);
+                GridLayout.LayoutParams cell = new GridLayout.LayoutParams();
+                cell.width = dp(124); cell.height = dp(109);
+                cell.setMargins(dp(4), 0, dp(8), dp(14));
+                grid.addView(tile, cell);
+                if (app.packageName.equals(lastFocusedPackage) && preferredFocus == null) preferredFocus = tile;
+            }
+            if (installed.isEmpty()) main.addView(text("No installed apps found.", 16, Color.WHITE, false));
+        } else {
+            TextView hint = text("PRESS OK TO LAUNCH     •     HOLD OK TO ORGANIZE", 10, 0xFF96A9C4, false);
+            hint.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(34));
+            hintLp.topMargin = dp(14);
+            main.addView(hint, hintLp);
         }
-        if (installed.isEmpty()) main.addView(text("No launchable apps found. Check installed TV apps.", 18, Color.WHITE, false));
-        TextView foot = text("MIX TV 1.0  •  OFFLINE  •  NO SYSTEM CHANGES", 11, 0xFF8193AA, false);
-        LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        fp.topMargin = dp(16);
-        main.addView(foot, fp);
 
-        View target = preferredFocus == null ? initialFocus : preferredFocus;
+        View target = preferredFocus == null ? firstDockApp : preferredFocus;
         if (target != null) target.requestFocus();
-        else if (dock.getChildCount() > 0) dock.getChildAt(0).requestFocus();
         handler.removeCallbacks(clockRefresh);
         handler.post(clockRefresh);
+    }
+
+    private TextView toolButton(String title, Runnable action) {
+        TextView v = text(title, 12, 0xFFF2F5FB, true);
+        v.setGravity(Gravity.CENTER);
+        v.setPadding(dp(14), 0, dp(14), 0);
+        v.setBackground(rounded(0x527887AB, 25));
+        v.setFocusable(true);
+        v.setOnClickListener(x -> action.run());
+        decorateFocus(v, title, "Press OK to open", "");
+        return v;
+    }
+
+    private TextView pillButton(String title, Runnable action) {
+        TextView v = text(title, 12, 0xFFF0F3FA, true);
+        v.setGravity(Gravity.CENTER);
+        v.setBackground(rounded(0x7850647F, 19));
+        v.setFocusable(true);
+        v.setOnClickListener(x -> action.run());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(176), dp(47));
+        lp.setMargins(dp(7), dp(1), dp(7), dp(1));
+        v.setLayoutParams(lp);
+        decorateFocus(v, title, "Press OK to open", "");
+        return v;
+    }
+
+    private View premiumTile(AppEntry app) {
+        LinearLayout tile = vertical();
+        tile.setGravity(Gravity.CENTER);
+        tile.setPadding(dp(8), dp(9), dp(8), dp(5));
+        GradientDrawable tileBg = rounded(0xB3212D45, 21);
+        tileBg.setStroke(dp(1), 0x99FFFFFF);
+        tile.setBackground(tileBg);
+        tile.setFocusable(true);
+        tile.setClickable(true);
+        ImageView image = new ImageView(this);
+        image.setImageDrawable(app.icon);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        tile.addView(image, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        TextView label = text(app.label, 11, 0xFFE9F1FF, true);
+        label.setSingleLine(true);
+        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        label.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(28));
+        labelLp.topMargin = dp(4);
+        tile.addView(label, labelLp);
+        tile.setOnClickListener(v -> openApp(app));
+        tile.setOnLongClickListener(v -> { showAppActions(app); return true; });
+        decorateFocus(tile, app.label, "Press OK to launch  ·  Hold OK to organize", app.packageName);
+        return tile;
+    }
+
+    private View premiumActionTile(String symbol, String title, Runnable action) {
+        LinearLayout tile = vertical();
+        tile.setGravity(Gravity.CENTER);
+        tile.setPadding(dp(8), dp(8), dp(8), dp(8));
+        tile.setBackground(rounded(0xA3324262, 21));
+        tile.setFocusable(true);
+        tile.setClickable(true);
+        TextView glyph = text(symbol, 36, 0xFFEDF4FF, false);
+        glyph.setGravity(Gravity.CENTER);
+        tile.addView(glyph);
+        TextView label = text(title, 11, 0xFFE4EEFD, true);
+        label.setGravity(Gravity.CENTER);
+        tile.addView(label);
+        tile.setOnClickListener(v -> action.run());
+        decorateFocus(tile, title, "Press OK to open the app library", "");
+        return tile;
+    }
+
+    private final class AtmosphereView extends View {
+        private final int palette;
+        private final android.graphics.Paint paint = new android.graphics.Paint(3);
+        AtmosphereView(android.content.Context context, int selected) {
+            super(context); palette = selected;
+        }
+        @Override protected void onDraw(android.graphics.Canvas c) {
+            super.onDraw(c);
+            int w = getWidth(), h = getHeight();
+            int top = palette == 2 ? 0xFF201B43 : palette == 1 ? 0xFF1C222D : 0xFF09162C;
+            int bottom = 0xFF070A14;
+            paint.setShader(new android.graphics.LinearGradient(
+                    0, 0, w, h, top, bottom, android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, w, h, paint);
+            int glow = palette == 2 ? 0xA08D50C7 : palette == 1 ? 0x7097A6B5 : 0x807C78BE;
+            paint.setShader(new android.graphics.RadialGradient(w * .76f, h * .31f, w * .58f,
+                    new int[]{glow, 0x305D759E, 0x000B162A},
+                    null, android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, w, h, paint);
+            // Subtle horizon bands, no network wallpaper or heavy video.
+            paint.setShader(new android.graphics.LinearGradient(0, h * .48f, 0, h,
+                    0xA01A2847, 0xFA070B16, android.graphics.Shader.TileMode.CLAMP));
+            android.graphics.Path mountain = new android.graphics.Path();
+            mountain.moveTo(0, h * .73f);
+            mountain.lineTo(w * .12f, h * .55f);
+            mountain.lineTo(w * .22f, h * .65f);
+            mountain.lineTo(w * .39f, h * .43f);
+            mountain.lineTo(w * .48f, h * .55f);
+            mountain.lineTo(w * .61f, h * .39f);
+            mountain.lineTo(w * .73f, h * .51f);
+            mountain.lineTo(w * .83f, h * .37f);
+            mountain.lineTo(w, h * .63f);
+            mountain.lineTo(w, h); mountain.lineTo(0, h); mountain.close();
+            c.drawPath(mountain, paint);
+            paint.setShader(new android.graphics.LinearGradient(0, h * .59f, 0, h,
+                    0xA20E1931, 0xFF070A12, android.graphics.Shader.TileMode.CLAMP));
+            android.graphics.Path near = new android.graphics.Path();
+            near.moveTo(0, h * .80f);
+            near.lineTo(w * .16f, h * .65f);
+            near.lineTo(w * .29f, h * .76f);
+            near.lineTo(w * .49f, h * .59f);
+            near.lineTo(w * .67f, h * .72f);
+            near.lineTo(w * .82f, h * .63f);
+            near.lineTo(w, h * .79f);
+            near.lineTo(w, h); near.lineTo(0, h); near.close();
+            c.drawPath(near, paint);
+            paint.setShader(null);
+        }
     }
 
     private String greeting() {
